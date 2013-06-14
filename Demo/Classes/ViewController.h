@@ -8,13 +8,13 @@
 
 #import <UIKit/UIKit.h>
 
-#import "SVSegmentedControl.h"
+#import "SKTogglesControl.h"
 
 @interface ViewController : UIViewController {
 
 }
 
-- (void)segmentedControlChangedValue:(SVSegmentedControl*)segmentedControl;
+- (void)segmentedControlChangedValue:(SKTogglesControl*)segmentedControl;
 
 @end
 

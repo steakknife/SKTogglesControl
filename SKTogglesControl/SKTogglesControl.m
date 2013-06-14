@@ -1,27 +1,34 @@
 //
-// SWSegmentedControl.m
-// SWSegmentedControl
+// SKTogglesControl.m
+// SKTogglesControl
 //
-// Created by Sam Vermette on 26.10.10.
+//
+// Adapted by Barry Allard on 2013-06-13
+// Copyright 2013 Barry Allard. All rights reserved.
+//
+// https://github.com/steakknife/SKTogglesControl
+//
+//
+// Originally Created by Sam Vermette on 26.10.10.
 // Copyright 2010 Sam Vermette. All rights reserved.
 //
-// https://github.com/samvermette/SVSegmentedControl
+// Original project https://github.com/samvermette/SKTogglesControl
+//
 
 #import <QuartzCore/QuartzCore.h>
-#import "SVSegmentedControl.h"
+#import "SKTogglesControl.h"
 
 
-@interface SVSegmentedThumb ()
+@interface SKTogglesThumb ()
 
 @property (nonatomic, assign) UIFont *font;
 
 @property (nonatomic, readonly) UILabel *label;
-@property (nonatomic, readonly) UILabel *secondLabel;
 @property (nonatomic, readonly) UIImageView *imageView;
-@property (nonatomic, readonly) UIImageView *secondImageView;
+@property (nonatomic, readonly) NSUInteger titlesCount;
+
 
 - (void)setTitle:(NSString*)title image:(UIImage*)image;
-- (void)setSecondTitle:(NSString*)title image:(UIImage*)image;
 
 - (void)activate;
 - (void)deactivate;
@@ -30,51 +37,71 @@
 
 
 
-@interface SVSegmentedControl()
+@interface SKTogglesControl()
 
-- (void)activate;
-- (void)snap:(BOOL)animated;
-- (void)crossFadeThumbContent;
-- (void)toggle;
+- (void)activate:(NSUInteger)index;
+- (void)deactivate:(NSUInteger)index;
+- (void)setupThumbs;
 - (void)setupAccessibility;
 
-@property (nonatomic, strong) SVSegmentedThumb *thumb;
-@property (nonatomic, strong) NSMutableArray *thumbRects;
+@property (nonatomic, strong) SKTogglesThumb *thumbPrototype;
+@property (nonatomic, strong) NSMutableArray *thumbs;
 @property (nonatomic, strong) NSMutableArray *accessibilityElements;
-
-@property (nonatomic, readwrite) NSUInteger selectedSegmentIndex;
-@property (nonatomic, readwrite) NSUInteger snapToIndex;
-@property (nonatomic, readwrite) BOOL trackingThumb;
-@property (nonatomic, readwrite) BOOL moved;
-@property (nonatomic, readwrite) BOOL activated;
-
-@property (nonatomic, readwrite) CGFloat halfSize;
-@property (nonatomic, readwrite) CGFloat dragOffset;
 @property (nonatomic, readwrite) CGFloat segmentWidth;
 @property (nonatomic, readwrite) CGFloat thumbHeight;
 
 @end
 
 
-@implementation SVSegmentedControl
+@implementation SKTogglesControl
 
 #pragma mark - Life Cycle
 
-- (id)initWithSectionTitles:(NSArray*)array {
+- (SKTogglesThumb*)thumbPrototype
+{
+    if (nil == _thumbPrototype)
+    {
+        _thumbPrototype = [[SKTogglesThumb alloc] initWithFrame:CGRectZero];
+        _thumbPrototype.hidden = YES;
+    }
+    return _thumbPrototype;
+}
+
+- (NSUInteger)titlesCount
+{
+    return [self.sectionTitles count];
+}
+
+- (SKTogglesThumb*)copyThumbPrototype
+{
+    SKTogglesThumb *newObject = [[SKTogglesThumb alloc] initWithFrame:CGRectZero];
     
-	if (self = [super initWithFrame:CGRectZero]) {
-        self.sectionTitles = array;
-        self.thumbRects = [NSMutableArray arrayWithCapacity:[array count]];
-        self.accessibilityElements = [NSMutableArray arrayWithCapacity:self.sectionTitles.count];
-        
+    newObject.tintColor        = self.thumbPrototype.tintColor;
+    newObject.textColor        = self.thumbPrototype.textColor;
+    newObject.textShadowColor  = self.thumbPrototype.textShadowColor;
+    newObject.textShadowOffset = self.thumbPrototype.textShadowOffset;
+    newObject.font             = self.thumbPrototype.font;
+    newObject.backgroundColor  = self.thumbPrototype.backgroundColor;
+    newObject.backgroundImage  = self.thumbPrototype.backgroundImage;
+    
+    return newObject;
+
+  //  NSData *thumbPrototypeEncoded = [NSKeyedArchiver archivedDataWithRootObject:self.thumbPrototype];
+  //  return [NSKeyedUnarchiver unarchiveObjectWithData:thumbPrototypeEncoded];
+}
+
+- (id)initWithSectionTitles:(NSArray*)array {
+    self = [super initWithFrame:CGRectZero];
+    
+	if (self) {
+        self.sectionTitles = [array copy];
+        self.accessibilityElements = [[NSMutableArray alloc] initWithCapacity:self.sectionTitles.count];
+        self.thumbs = [[NSMutableArray alloc] initWithCapacity:self.sectionTitles.count];
         self.backgroundColor = [UIColor clearColor];
         self.backgroundTintColor = [UIColor colorWithWhite:0 alpha:0.5];
         self.clipsToBounds = YES;
         self.userInteractionEnabled = YES;
         self.animateToInitialSelection = NO;
-        
-        self.mustSlideToChange = NO;
-        self.minimumOverlapToChange = 0.66;
         
         self.font = [UIFont boldSystemFontOfSize:15];
         self.textColor = [UIColor grayColor];
@@ -86,22 +113,13 @@
         self.height = 32.0;
         self.cornerRadius = 4.0;
         
-        self.selectedSegmentIndex = 0;
-        
         self.innerShadowColor = [UIColor colorWithWhite:0 alpha:0.8];
         
+        [self setupThumbs];
         [self setupAccessibility];
     }
     
 	return self;
-}
-
-- (SVSegmentedThumb *)thumb {
-    
-    if(_thumb == nil)
-        _thumb = [[SVSegmentedThumb alloc] initWithFrame:CGRectZero];
-    
-    return _thumb;
 }
 
 - (void)sizeToFit
@@ -115,45 +133,9 @@
     int c = [self.sectionTitles count];
 	int i = 0;
 	
-    [self calculateSegmentWidth];
-    
-    if(CGRectIsEmpty(self.frame)) {
-        self.bounds = CGRectMake(0, 0, self.segmentWidth*c, self.height);
-    }
-    else {
-        self.height = self.frame.size.height;
-    }
-    
-    // Invalidate only available in iOS 6
-    if ([self respondsToSelector:@selector(invalidateIntrinsicContentSize)]) {
-        [self invalidateIntrinsicContentSize];
-    }
-    
-    self.thumbHeight = self.thumb.backgroundImage ? self.thumb.backgroundImage.size.height : self.height-(self.thumbEdgeInset.top+self.thumbEdgeInset.bottom);
-    
-    i = 0;
-    self.thumbRects = [NSMutableArray new];
-	for(NSString *titleString in self.sectionTitles) {
-        CGRect thumbRect = CGRectMake(self.segmentWidth*i, 0, self.segmentWidth, self.bounds.size.height);
-        thumbRect.size.width+=10; // 5px drop shadow on each side
-        thumbRect.origin.x-=5;
-        thumbRect.size.height-=1; // for segmented bottom gloss
-        [self.thumbRects addObject:[NSValue valueWithCGRect:thumbRect]];
-		i++;
-	}
-	
-    self.thumb.frame = [[self.thumbRects objectAtIndex:self.selectedSegmentIndex] CGRectValue];
-    self.thumb.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.thumb.bounds cornerRadius:2].CGPath;
-    self.thumb.font = self.font;
-    
-    [self insertSubview:self.thumb atIndex:0];
-    [self setThumbValuesForIndex:self.selectedSegmentIndex];
-}
-
-- (void)calculateSegmentWidth {
     if(CGRectIsEmpty(self.frame)) {
         self.segmentWidth = 0;
-        int i = 0;
+        
         for(NSString *titleString in self.sectionTitles) {
             CGFloat stringWidth = [titleString sizeWithFont:self.font].width+(self.titleEdgeInsets.left+self.titleEdgeInsets.right+self.thumbEdgeInset.left+self.thumbEdgeInset.right);
             
@@ -165,9 +147,59 @@
         }
         
         self.segmentWidth = ceil(self.segmentWidth/2.0)*2; // make it an even number so we can position with center
+        self.bounds = CGRectMake(0, 0, self.segmentWidth*c, self.height);
     }
     else {
         self.segmentWidth = round(self.frame.size.width/self.sectionTitles.count);
+        self.height = self.frame.size.height;
+    }
+    
+
+    
+    i = 0;
+	for(NSString *titleString in self.sectionTitles) {
+        SKTogglesThumb *thumb = [self thumbAtIndex:i];
+        
+        self.thumbHeight = self.thumbPrototype.backgroundImage ? self.thumbPrototype.backgroundImage.size.height : self.height-(self.thumbEdgeInset.top+self.thumbEdgeInset.bottom);
+        
+        CGRect thumbRect = CGRectMake(self.segmentWidth*i, 0, self.segmentWidth, self.bounds.size.height);
+        thumbRect.size.width+=10; // 5px drop shadow on each side
+        thumbRect.origin.x-=5;
+        thumbRect.size.height-=1; // for segmented bottom gloss
+        
+        thumb.frame = thumbRect;
+        thumb.font = self.font;
+        thumb.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:thumb.bounds cornerRadius:2].CGPath;
+        
+        [self addSubview:thumb];
+        [self setThumbValuesForIndex:i];
+        
+		i++;
+	}
+	
+}
+
+- (void)calculateSegmentWidth {
+    if (CGRectIsEmpty(self.frame)) {
+        self.segmentWidth = 0;
+        int i = 0;
+        for (NSString *titleString in self.sectionTitles) {
+            CGFloat stringWidth = [titleString sizeWithFont:self.font].width+(self.titleEdgeInsets.left+self.titleEdgeInsets.right+self.thumbEdgeInset.left+self.thumbEdgeInset.right);
+            
+            if (self.sectionImages.count > i) {
+                stringWidth += [(UIImage*)[self.sectionImages objectAtIndex:i] size].width+5;
+            }
+            self.segmentWidth = MAX(stringWidth, self.segmentWidth);
+            i++;
+        }
+        
+        self.segmentWidth = ceil(self.segmentWidth/2.0)*2; // make it an even number so we can position with center
+    }
+    else {
+        if (0 == self.titlesCount) {
+            return;
+        }
+        self.segmentWidth = round(self.frame.size.width/self.titlesCount);
     }
 }
 
@@ -177,7 +209,7 @@
         [self calculateSegmentWidth];
     }
     
-    CGFloat intrinsicWidth = self.segmentWidth * [self.sectionTitles count];
+    CGFloat intrinsicWidth = self.segmentWidth * self.titlesCount;
     return CGSizeMake(intrinsicWidth, self.height);
 }
 
@@ -189,8 +221,11 @@
 }
 
 - (void)setBounds:(CGRect)bounds {
+    if (0 == self.titlesCount) {
+        return;
+    }
     [super setBounds:bounds];
-    self.segmentWidth = round(bounds.size.width/self.sectionTitles.count);
+    self.segmentWidth = round(bounds.size.width/self.titlesCount);
     [self setupAccessibility];
 }
 
@@ -200,11 +235,32 @@
 }
 
 - (void)willMoveToSuperview:(UIView *)newSuperview {
-    
-    if (newSuperview == nil)
+    if (newSuperview == nil) {
         return; // control is being _removed_ from super view
-    
+    }
     [self updateSectionRects];
+}
+
+- (void)removeAllThumbs
+{
+    for (SKTogglesThumb *thumb in self.thumbs) {
+        [thumb removeFromSuperview];
+    }
+    [self.thumbs removeAllObjects];
+}
+
+- (void)setupThumbs {
+    [self removeAllThumbs];
+    
+    NSUInteger i = 0;
+    for (NSString *title in self.sectionTitles) {
+        SKTogglesThumb * newObject = [self copyThumbPrototype];
+        [self addSubview:newObject];
+        newObject.label.text = title;
+        [self.thumbs addObject:newObject];
+
+        ++i;
+    }
 }
 
 - (void)setupAccessibility {
@@ -215,7 +271,7 @@
         UIAccessibilityElement *element = [[UIAccessibilityElement alloc] initWithAccessibilityContainer:self];
         element.isAccessibilityElement = YES;
         element.accessibilityLabel = [NSString stringWithFormat:NSLocalizedString(@"%@ tab",), title];
-        element.accessibilityHint = [NSString stringWithFormat:NSLocalizedString(@"Tab %d of %d",), i + 1, self.sectionTitles.count];
+        element.accessibilityHint = [NSString stringWithFormat:NSLocalizedString(@"Tab %d of %d",), i + 1, self.titlesCount];
         
         [self.accessibilityElements addObject:element];
         i++;
@@ -233,10 +289,11 @@
     element.accessibilityFrame = [self.window convertRect:CGRectMake((self.segmentWidth*index), posY, self.segmentWidth, self.font.pointSize*2) fromView:self];
     
     element.accessibilityTraits = UIAccessibilityTraitNone;
-    if (index == self.selectedSegmentIndex)
+    if ([self isSetIndex:index]) {
         element.accessibilityTraits = element.accessibilityTraits | UIAccessibilityTraitSelected;
-    else if (!self.enabled)
+    } else if (! self.enabled) {
         element.accessibilityTraits = element.accessibilityTraits | UIAccessibilityTraitNotEnabled;
+    }
     
     return element;
 }
@@ -255,57 +312,6 @@
                                           bounds.size.height + self.touchTargetMargins.bottom + self.touchTargetMargins.top), point);
 }
 
-- (BOOL)beginTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
-    [super beginTrackingWithTouch:touch withEvent:event];
-    
-    CGPoint cPos = [touch locationInView:self.thumb];
-	self.activated = NO;
-	
-	self.snapToIndex = MIN(floor(self.thumb.center.x/self.segmentWidth), self.sectionTitles.count-1);
-	
-	if([self.thumb pointInside:cPos withEvent:event]) {
-		self.trackingThumb = YES;
-        [self.thumb deactivate];
-		self.dragOffset = (self.thumb.frame.size.width/2)-cPos.x;
-	}
-    
-    return YES;
-}
-
-- (BOOL)continueTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
-    [super continueTrackingWithTouch:touch withEvent:event];
-    
-    CGPoint cPos = [touch locationInView:self];
-	CGFloat newPos = cPos.x+self.dragOffset;
-	CGFloat newMaxX = newPos+(CGRectGetWidth(self.thumb.frame)/2);
-	CGFloat newMinX = newPos-(CGRectGetWidth(self.thumb.frame)/2);
-	
-	CGFloat buffer = 0.0; // to prevent the thumb from moving slightly too far
-	CGFloat pMaxX = CGRectGetMaxX(self.bounds) - buffer+5;
-	CGFloat pMinX = CGRectGetMinX(self.bounds) + buffer-5;
-	
-	if((newMaxX > pMaxX || newMinX < pMinX) && self.trackingThumb) {
-		self.snapToIndex = MIN(floor(self.thumb.center.x/self.segmentWidth), self.sectionTitles.count-1);
-        
-        if(newMaxX-pMaxX > 10 || pMinX-newMinX > 10)
-            self.moved = YES;
-        
-		[self snap:NO];
-        
-		if (self.crossFadeLabelsOnDrag)
-			[self crossFadeThumbContent];
-	}
-	
-	else if(self.trackingThumb) {
-		self.thumb.center = CGPointMake(cPos.x+self.dragOffset, self.thumb.center.y);
-		self.moved = YES;
-        
-		if (self.crossFadeLabelsOnDrag)
-			[self crossFadeThumbContent];
-	}
-    
-    return YES;
-}
 
 - (void)endTrackingWithTouch:(UITouch *)touch withEvent:(UIEvent *)event {
     [super endTrackingWithTouch:touch withEvent:event];
@@ -316,155 +322,26 @@
 	CGFloat pMaxX = CGRectGetMaxX(self.bounds);
 	CGFloat pMinX = CGRectGetMinX(self.bounds); // 5 is for thumb shadow
 	
-    if(!self.mustSlideToChange && !self.moved && self.trackingThumb && [self.sectionTitles count] == 2)
-        [self toggle];
-    else if(!self.activated && posX > pMinX && posX < pMaxX) {
-        int potentialSnapToIndex = MIN(floor(cPos.x/self.segmentWidth), self.sectionTitles.count-1);
-        
-        if (self.mustSlideToChange) {
-            CGRect potentialSegmentRect = CGRectMake(self.segmentWidth * potentialSnapToIndex, 0, self.segmentWidth, self.bounds.size.height);
-            CGRect intersection = CGRectIntersection(potentialSegmentRect, self.thumb.frame);
-            CGFloat overlap = intersection.size.width / self.segmentWidth;
-            
-            // Only snap to this segment if we are far enough within it
-            if (overlap > self.minimumOverlapToChange)
-                self.snapToIndex = potentialSnapToIndex;
-        }
-        else {
-            self.snapToIndex = potentialSnapToIndex;
-        }
-        [self snap:YES];
-    }
-    else {
-        if(posX < pMinX)
-            posX = pMinX;
-        
-        if(posX >= pMaxX)
-            posX = pMaxX-1;
-        
-        self.snapToIndex = MIN(floor(posX/self.segmentWidth), self.sectionTitles.count-1);
-        [self snap:YES];
-    }
-}
-
-- (void)cancelTrackingWithEvent:(UIEvent *)event {
-    [super cancelTrackingWithEvent:event];
-    
-    if(self.trackingThumb)
-		[self snap:NO];
-}
-
-#pragma mark -
-
-- (void)snap:(BOOL)animated {
-    
-	[self.thumb deactivate];
-    
-    if(self.crossFadeLabelsOnDrag) {
-        self.thumb.secondLabel.alpha = 0;
-        self.thumb.secondImageView.alpha = 0;
+    if (posX < pMinX) {
+        posX = pMinX;
+    } else if (posX >= pMaxX) {
+        posX = pMaxX-1;
     }
     
-	int index;
-	
-	if(self.snapToIndex != -1)
-		index = self.snapToIndex;
-	else
-		index = MIN(floor(self.thumb.center.x/self.segmentWidth), self.sectionTitles.count-1);
-	
-    [self setThumbValuesForIndex:index];
+    if (! [self pointInside:cPos withEvent:event]) {
+        return;
+    }
     
-    if(self.changeHandler && self.snapToIndex != self.selectedSegmentIndex && !self.isTracking)
-		self.changeHandler(self.snapToIndex);
-    
-	if(animated)
-		[self setSelectedSegmentIndex:index animated:YES];
-	else
-		self.thumb.frame = [[self.thumbRects objectAtIndex:index] CGRectValue];
-}
-
-- (void)crossFadeThumbContent {
-    float segmentOverlap = ((int)(self.thumb.center.x * 10 / self.segmentWidth))/10.0f; // how far along are we dragging through the current segment
-    int hoverIndex = floor(segmentOverlap); // the segment the touch is current hovering
-    BOOL secondTitleOnLeft = (segmentOverlap - hoverIndex) < 0.5;
-    
-	if (secondTitleOnLeft && hoverIndex > 0) {
-		self.thumb.label.alpha = self.thumb.imageView.alpha = 0.5 + (segmentOverlap - hoverIndex);
-		self.thumb.secondLabel.alpha = self.thumb.secondImageView.alpha = 0.5 - (segmentOverlap - hoverIndex);
-        [self setThumbSecondValuesForIndex:hoverIndex-1];
-	}
-    else if (hoverIndex + 1 < self.sectionTitles.count) {
-		self.thumb.label.alpha = self.thumb.imageView.alpha = 0.5 + (1 - (segmentOverlap - hoverIndex));
-		self.thumb.secondLabel.alpha = self.thumb.secondImageView.alpha = (segmentOverlap - hoverIndex) - 0.5;
-        [self setThumbSecondValuesForIndex:hoverIndex+1];
-	}
-    else {
-		self.thumb.secondLabel.alpha = self.thumb.secondImageView.alpha = 0.0;
-		self.thumb.label.alpha = self.thumb.imageView.alpha = 1.0;
-	}
-    [self setThumbValuesForIndex:hoverIndex];
-}
-
-- (void)activate {
-	
-	self.trackingThumb = self.moved = NO;
-	
-    [self setThumbValuesForIndex:self.selectedSegmentIndex];
-    
-	[UIView animateWithDuration:0.1
-						  delay:0
-						options:UIViewAnimationOptionAllowUserInteraction
-					 animations:^{
-						 self.activated = YES;
-						 [self.thumb activate];
-					 }
-					 completion:NULL];
-}
-
-
-- (void)toggle {
-	
-	if(self.snapToIndex == 0)
-		self.snapToIndex = 1;
-	else
-		self.snapToIndex = 0;
-	
-	[self snap:YES];
-}
-
-
-- (void)moveThumbToIndex:(NSUInteger)index animate:(BOOL)animate {
-    [self setSelectedSegmentIndex:index animated:animate];
-}
-
-- (void)setSelectedSegmentIndex:(NSUInteger)index animated:(BOOL)animated {
-    _selectedSegmentIndex = index;
-    
-    if(self.superview) {
-        [self sendActionsForControlEvents:UIControlEventValueChanged];
+    if (0 == self.segmentWidth) {
+        return;
+    }
         
-        if(animated) {
-            [self.thumb deactivate];
-            [UIView animateWithDuration:0.2
-                                  delay:0
-                                options:UIViewAnimationOptionCurveEaseOut
-                             animations:^{
-                                 self.thumb.frame = [[self.thumbRects objectAtIndex:index] CGRectValue];
-                                 
-                                 if(self.crossFadeLabelsOnDrag)
-                                     [self crossFadeThumbContent];
-                             }
-                             completion:^(BOOL finished){
-                                 if (finished) {
-                                     [self activate];
-                                 }
-                             }];
-        }
-        
-        else {
-            self.thumb.frame = [[self.thumbRects objectAtIndex:index] CGRectValue];
-            [self activate];
-        }
+    _newIndex = MIN(floor(posX/self.segmentWidth), self.sectionTitles.count-1);
+    [self toggleIndex:self.newIndex];
+    _newState = [self isSetIndex:self.newIndex];
+    
+    if (self.changeHandler) {
+        self.changeHandler(self.newIndex, self.newState);
     }
 }
 
@@ -474,11 +351,6 @@
 {
     if (_sectionTitles != sectionTitles) {
         _sectionTitles = [sectionTitles copy];
-        if (self.selectedSegmentIndex < _sectionTitles.count) {
-            
-        } else {
-            [self setSelectedSegmentIndex:0 animated:YES];
-        }
         [self setNeedsDisplay];
         [self setupAccessibility];
     }
@@ -488,56 +360,176 @@
 
 - (void)setBackgroundImage:(UIImage *)newImage {
     
-    if(_backgroundImage)
+    if (_backgroundImage) {
         _backgroundImage = nil;
+    }
     
-    if(newImage) {
+    if (newImage) {
         _backgroundImage = newImage;
         self.height = _backgroundImage.size.height;
     }
 }
 
 - (UIImage*)imageForSectionIndex:(NSUInteger)index {
-    if(self.sectionImages.count > index)
-        return [self.sectionImages objectAtIndex:index];
-    return nil;
+    if (self.sectionImages.count <= index) {
+        return nil;
+    }
+    return [self.sectionImages objectAtIndex:index];
+}
+
+- (SKTogglesThumb*)thumbAtIndex:(NSUInteger)index
+{
+    return (SKTogglesThumb*)[self.thumbs objectAtIndex:index];
 }
 
 - (void)setThumbValuesForIndex:(NSUInteger)index {
-    [self.thumb setTitle:[self.sectionTitles objectAtIndex:index]
-                   image:[self sectionImage:[self imageForSectionIndex:index] withTintColor:self.thumb.textColor]];
+    SKTogglesThumb* thumb = [self thumbAtIndex:index];
+    
+    NSString *title = [self.sectionTitles objectAtIndex:index];
+    UIImage *image = [self sectionImage:[self imageForSectionIndex:index]
+                          withTintColor:self.thumbPrototype.textColor];
+    [thumb setTitle:title
+              image:image];
 }
 
-- (void)setThumbSecondValuesForIndex:(NSUInteger)index {
-    [self.thumb setSecondTitle:[self.sectionTitles objectAtIndex:index]
-                         image:[self sectionImage:[self imageForSectionIndex:index] withTintColor:self.thumb.textColor]];
+- (BOOL)isSetIndex:(NSUInteger)index
+{
+    return ![self thumbAtIndex:index].hidden;
 }
 
-#pragma mark - Deprecated methods
-
-- (void)setSelectedIndex:(NSUInteger)index {
-    [self setSelectedSegmentIndex:index animated:NO];
+- (void)setIndex:(NSUInteger)index withValue:(BOOL)state
+{
+    [self setIndex:index withValue:state animated:self.animated];
 }
 
-- (void)setSelectedIndex:(NSUInteger)index animated:(BOOL)animated {
-    [self setSelectedSegmentIndex:index animated:animated];
+- (void)setIndex:(NSUInteger)index withValue:(BOOL)state animated:(BOOL)animated
+{
+    if ([self isSetIndex:index] != state) {
+        [self toggleIndex:index animated:animated];
+    }
 }
 
-- (NSUInteger)selectedIndex {
-    return self.selectedSegmentIndex;
+- (void)setIndex:(NSUInteger)index {
+    [self setIndex:index animated:self.animated];
+}
+
+- (void)unsetIndex:(NSUInteger)index {
+    [self unsetIndex:index animated:self.animated];
+}
+
+- (void)toggleIndex:(NSUInteger)index {
+    [self toggleIndex:index animated:self.animated];
+}
+
+- (void)toggleIndex:(NSUInteger)index animated:(BOOL)animated {
+    if ([self isSetIndex:index]) {
+        [self unsetIndex:index animated:animated];
+    } else {
+        [self setIndex:index animated:animated];
+    }
+}
+
+- (void)setIndex:(NSUInteger)index animated:(BOOL)animated {
+    if (! [self isEnabledIndex:index]) {
+        return; // dont change if disabled
+    }
+    
+    if ([self isSetIndex:index]) {
+        return; // already done
+    }
+    
+    if (self.superview) {
+        [self sendActionsForControlEvents:UIControlEventValueChanged];
+        
+        if (animated) {
+            [UIView animateWithDuration:0.2
+                                  delay:0
+                                options:UIViewAnimationOptionCurveEaseOut
+                             animations:nil
+                             completion:^(BOOL finished){
+                                 if (finished) {
+                                     [self activate:index];
+                                 }
+                             }];
+        } else {
+            [self activate:index];
+        }
+    } else {
+        [self activate:index];
+    }
+}
+
+- (BOOL)isEnabledIndex:(NSUInteger)index
+{
+    return [self thumbAtIndex:index].enabled;
+}
+
+- (void)enableIndex:(NSUInteger)index
+{
+    [self setEnabledIndex:index withValue:YES];
+}
+
+- (void)disableIndex:(NSUInteger)index
+{
+    [self setEnabledIndex:index withValue:NO];
+}
+
+- (void)setEnabledIndex:(NSUInteger)index withValue:(BOOL)state
+{
+    [self thumbAtIndex:index].enabled = state;
+}
+
+- (void)unsetIndex:(NSUInteger)index animated:(BOOL)animated {
+    if (! [self isEnabledIndex:index]) {
+        return; // don't change if disabled
+    }
+
+    if (! [self isSetIndex:index]) {
+        return; // already unset
+    }
+    
+    if (self.superview) {
+        [self sendActionsForControlEvents:UIControlEventValueChanged];
+        
+        if (animated) {
+            [UIView animateWithDuration:0.2
+                                  delay:0
+                                options:UIViewAnimationOptionCurveEaseOut
+                             animations:nil
+                             completion:^(BOOL finished){
+                                 if (finished) {
+                                     [self deactivate:index];
+                                 }
+                             }];
+        } else {
+            [self deactivate:index];
+        }
+    } else {
+        [self deactivate:index];
+    }
+    
 }
 
 #pragma mark - Drawing
 
 
+- (void)activate:(NSUInteger)index
+{
+    [self thumbAtIndex:index].hidden = NO;
+}
+
+- (void)deactivate:(NSUInteger)index
+{
+    [self thumbAtIndex:index].hidden = YES;
+}
+
 - (void)drawRect:(CGRect)rect {
     
     CGContextRef context = UIGraphicsGetCurrentContext();
     
-    if(self.backgroundImage)
+    if (self.backgroundImage) {
         [self.backgroundImage drawInRect:rect];
-    
-    else {
+    } else {
         // bottom gloss
         CGRect insetRect = CGRectMake(0, 0, rect.size.width, rect.size.height-1);
         CGContextSetFillColorWithColor(context, [UIColor colorWithWhite:1 alpha:0.1].CGColor);
@@ -553,10 +545,10 @@
         
         // background tint
         CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-        UIColor *tintColorToApply = _tintColor ? _tintColor : self.backgroundTintColor;
+        UIColor *tintColorToApply = self.backgroundTintColor;
         
         // if color was created with colorWithWhite:alpha:
-        if(CGColorGetNumberOfComponents(tintColorToApply.CGColor) == 2) {
+        if (CGColorGetNumberOfComponents(tintColorToApply.CGColor) == 2) {
             float white = CGColorGetComponents(tintColorToApply.CGColor)[0];
             float alpha = CGColorGetComponents(tintColorToApply.CGColor)[1];
             tintColorToApply = [UIColor colorWithRed:white green:white blue:white alpha:alpha];
@@ -591,27 +583,26 @@
     
 	int i = 0;
 	
-	for(NSString *titleString in self.sectionTitles) {
+	for (NSString *titleString in self.sectionTitles) {
         CGSize titleSize = [titleString sizeWithFont:self.font];
         CGFloat titleWidth = titleSize.width;
         CGFloat posY = round((CGRectGetHeight(rect)-self.font.ascender-5)/2)+self.titleEdgeInsets.top-self.titleEdgeInsets.bottom;
-        //NSLog(@"%@ %f, height=%f, descender=%f, ascender=%f, lineHeight=%f", self.font.familyName, self.font.pointSize, titleSize.height, self.font.descender, self.font.ascender, self.font.lineHeight);
-        
+
         CGFloat imageWidth = 0;
         UIImage *image = nil;
         
-        if(self.sectionImages.count > i) {
+        if (self.sectionImages.count > i) {
             image = [self.sectionImages objectAtIndex:i];
             imageWidth = image.size.width+5;
         }
         
-        titleWidth+=imageWidth;
+        titleWidth += imageWidth;
         CGFloat sectionOffset = round((self.segmentWidth-titleWidth)/2);
         CGFloat titlePosX = (self.segmentWidth*i)+sectionOffset;
         
-        if(image)
+        if (image) {
             [[self sectionImage:image withTintColor:self.textColor] drawAtPoint:CGPointMake(titlePosX, round((rect.size.height-image.size.height)/2))];
-        
+        }
 #if __IPHONE_OS_VERSION_MIN_REQUIRED < 60000
 		[titleString drawAtPoint:CGPointMake(titlePosX+imageWidth, posY) forWidth:self.segmentWidth withFont:self.font lineBreakMode:UILineBreakModeTailTruncation];
 #else
@@ -625,9 +616,9 @@
 #pragma mark - Image Methods Methods
 
 - (UIImage *)sectionImage:(UIImage*)image withTintColor:(UIColor*)color {
-    if(!image)
+    if (! image) {
         return nil;
-    
+    }
     CGRect rect = { CGPointZero, image.size };
     UIGraphicsBeginImageContextWithOptions(rect.size, NO, image.scale); {
         [color set];
