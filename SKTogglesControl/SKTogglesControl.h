@@ -23,7 +23,7 @@
 
 @interface SKTogglesControl : UIControl
 
-@property (nonatomic, copy) void (^changeHandler)(NSUInteger newIndex, BOOL newState); // you can also use addTarget:action:forControlEvents:
+@property (nonatomic, copy) void (^changeHandler)(__weak SKTogglesControl *weakSelf, NSUInteger newIndex, BOOL newState); // you can also use addTarget:action:forControlEvents:
 @property (nonatomic, copy) NSArray *sectionTitles;
 @property (nonatomic, copy) NSArray *sectionImages;
 

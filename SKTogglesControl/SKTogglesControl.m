@@ -341,7 +341,8 @@
     _newState = [self isSetIndex:self.newIndex];
     
     if (self.changeHandler) {
-        self.changeHandler(self.newIndex, self.newState);
+        __weak SKTogglesControl *weakSelf = self;
+        self.changeHandler(weakSelf, self.newIndex, self.newState);
     }
 }
 

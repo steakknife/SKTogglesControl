@@ -18,7 +18,7 @@
 	// 1st CONTROL
 	
 	SKTogglesControl *navSC = [[SKTogglesControl alloc] initWithSectionTitles:[NSArray arrayWithObjects:@"Section 1", @"Section 2", nil]];
-    navSC.changeHandler = ^(NSUInteger newIndex, BOOL newState) {
+    navSC.changeHandler = ^(__weak SKTogglesControl *weakSelf, NSUInteger newIndex, BOOL newState) {
         NSLog(@"segmentedControl did select index %i (via block handler), %i", newIndex, newState);
     };
     
