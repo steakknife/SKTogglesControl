@@ -2,7 +2,7 @@
 
 SKTogglesControl is a customizable `UIControl` class that mimics `UISegmentedControl` but that looks like an `UISwitch`.
 
-![SKTogglesControl](http://content.screencast.com/users/zxcvxzcvxcv/folders/Jing/media/0e034f81-2af1-4ab7-b14b-33534aaeb9f9/00000107.png)
+![SKTogglesControl](http://content.screencast.com/users/zxcvxzcvxcv/folders/Jing/media/b1de187e-36aa-45c8-891b-ab8b9ab89941/00000112.png)
 
 ## Installation
 
