@@ -18,7 +18,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import "SKTogglesControl.h"
 
-
 @interface SKTogglesThumb ()
 
 @property (nonatomic, assign) UIFont *font;
@@ -26,6 +25,7 @@
 @property (nonatomic, readonly) UILabel *label;
 @property (nonatomic, readonly) UIImageView *imageView;
 @property (nonatomic, readonly) NSUInteger titlesCount;
+
 
 
 - (void)setTitle:(NSString*)title image:(UIImage*)image;
@@ -49,11 +49,31 @@
 @property (nonatomic, strong) NSMutableArray *accessibilityElements;
 @property (nonatomic, readwrite) CGFloat segmentWidth;
 @property (nonatomic, readwrite) CGFloat thumbHeight;
+@property (nonatomic, strong, readonly) NSObject *y;
+@property (nonatomic, strong, readonly) NSObject *n;
 
 @end
 
 
 @implementation SKTogglesControl
+@synthesize y = _y;
+@synthesize n = _n;
+
+- (id)y
+{
+    if (nil == _y) {
+        _y = [[NSNumber alloc] initWithBool:YES];
+    }
+    return _y;
+}
+
+- (id)n
+{
+    if (nil == _n) {
+        _n = [[NSNumber alloc] initWithBool:NO];
+    }
+    return _n;
+}
 
 #pragma mark - Life Cycle
 
@@ -126,6 +146,29 @@
 {
     self.frame = CGRectZero;
     [self updateSectionRects];
+}
+
+- (void)getAllToArray:(NSMutableArray *)array
+{
+    [array removeAllObjects];
+    for (NSUInteger index = 0; index < self.titlesCount; ++index) {
+        [array addObject: [self isSetIndex:index] ? self.y : self.n];
+    }
+}
+
+- (void)setAllFromArray:(NSArray *)array
+{
+    [self setAllFromArray:array animated:self.animated];
+}
+
+- (void)setAllFromArray:(NSArray *)array animated:(BOOL)animated
+{
+    NSUInteger index = 0;
+    array = [array copy];
+    for (NSNumber *value in array) {
+        [self setIndex:index withValue:value.boolValue animated:animated];
+        ++index;
+    }
 }
 
 - (void)updateSectionRects {
@@ -340,6 +383,11 @@
     [self toggleIndex:self.newIndex];
     _newState = [self isSetIndex:self.newIndex];
     
+ //   [self notifyChangeHandler];
+}
+
+- (void)notifyChangeHandler
+{
     if (self.changeHandler) {
         __weak SKTogglesControl *weakSelf = self;
         self.changeHandler(weakSelf, self.newIndex, self.newState);
@@ -458,6 +506,8 @@
     } else {
         [self activate:index];
     }
+    
+    [self notifyChangeHandler];
 }
 
 - (BOOL)isEnabledIndex:(NSUInteger)index
@@ -509,6 +559,7 @@
         [self deactivate:index];
     }
     
+    [self notifyChangeHandler];
 }
 
 #pragma mark - Drawing

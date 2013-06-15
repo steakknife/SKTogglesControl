@@ -53,6 +53,10 @@
 
 - (SKTogglesControl*)initWithSectionTitles:(NSArray*)titlesArray;
 
+- (void)setAllFromArray:(NSArray *)array;
+- (void)setAllFromArray:(NSArray *)array animated:(BOOL)animated;
+- (void)getAllToArray:(NSMutableArray *)array;
+
 - (BOOL)isSetIndex:(NSUInteger)index;
 - (void)toggleIndex:(NSUInteger)index;
 - (void)toggleIndex:(NSUInteger)index animated:(BOOL)animated;
@@ -63,10 +67,12 @@
 - (void)setIndex:(NSUInteger)index withValue:(BOOL)state;
 - (void)setIndex:(NSUInteger)index withValue:(BOOL)state animated:(BOOL)animated;
 
+
 - (BOOL)isEnabledIndex:(NSUInteger)index;
 - (void)enableIndex:(NSUInteger)index;
 - (void)disableIndex:(NSUInteger)index;
 - (void)setEnabledIndex:(NSUInteger)index withValue:(BOOL)state;
+
 @end
 
 

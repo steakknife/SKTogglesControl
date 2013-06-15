@@ -44,7 +44,6 @@
 @synthesize firstImageView = _firstImageView;
 @synthesize thumbBackgroundImageView = _thumbBackgroundImageView;
 
-
 - (void)setup {
     self.userInteractionEnabled = NO;
     self.clipsToBounds = YES;
@@ -59,7 +58,6 @@
     self.enabled = YES;
     self.selected = NO;
     self.hidden = YES;
-   // NSLog(@"setup complete");
 }
 
 - (id)initWithCoder:(NSCoder *)aDecoder
@@ -342,7 +340,6 @@
 }
 
 - (void)setSelected:(BOOL)s {
-	
 	selected = s;
 	
 	if (selected && !self.highlightedBackgroundImage) {

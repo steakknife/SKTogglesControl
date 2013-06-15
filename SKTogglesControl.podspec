@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name     = 'SKTogglesControl'
-  s.version  = '1.0'
+  s.version  = '1.1'
   s.platform = :ios, '5.0'
   s.license  = 'MIT'
   s.summary  = 'Segmented toggles control for your iOS app.'
