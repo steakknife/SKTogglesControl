@@ -118,8 +118,9 @@ SKTogglesControl is brought to you by Barry Allard and original credit to [Sam V
 ## Wanted (dead or alive)
 
 - Glow effect
-- Ressessed effect
-- Animation
+- Inset effect
+- Outset look (dimmed instead of missing)
+- Press animation
 - Nice sounds
 
 ## Issues
