@@ -8,7 +8,11 @@ SKTogglesControl is a customizable `UIControl` class that mimics `UISegmentedCon
 
 ### From CocoaPods
 
-Add `pod 'SKTogglesControl', :git => 'https://github.com/steakknife/SKTogglesControl.git'` to your Podfile or `pod 'SKTogglesControl', :git => 'https://github.com/steakknife/SKTogglesControl.git', :head` if you're feeling adventurous.
+Add this to your `Podfile:
+
+```ruby
+pod 'SKTogglesControl', :podspec => 'https://raw.github.com/steakknife/SKTogglesControl/master/SKTogglesControl.podspec'
+```
 
 ### Manually
 

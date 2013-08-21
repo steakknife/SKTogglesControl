@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name     = 'SKTogglesControl'
-  s.version  = '1.1'
+  s.version  = '1.2'
   s.platform = :ios, '5.0'
-  s.license  = 'MIT'
+  s.license  = { :type => 'MIT', :file => 'LICENSE.txt' }
   s.summary  = 'Segmented toggles control for your iOS app.'
   s.homepage = 'https://github.com/steakknife/SKTogglesControl'
   s.author   = { 'Barry Allard' => 'barry.allard@gmail.com' } # originally Sam Vermette 
