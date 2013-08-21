@@ -114,6 +114,14 @@ Providing an action method ending with a semicolon, the sender object is therefo
 
 SKTogglesControl is brought to you by Barry Allard and original credit to [Sam Vermette](http://samvermette.com) and [contributors to the project](https://github.com/steakknife/SKTogglesControl/contributors).  If you're using SKTogglesControl in your project, attribution would be nice. 
 
+
+## Wanted (dead or alive)
+
+- Glow effect
+- Ressessed effect
+- Animation
+- Nice sounds
+
 ## Issues
 
 http://github.com/steakknife/SKTogglesControl/issues
