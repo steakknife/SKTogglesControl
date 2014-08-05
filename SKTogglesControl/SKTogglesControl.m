@@ -61,7 +61,7 @@
 
 - (id)y
 {
-    if (nil == _y) {
+    if (!_y) {
         _y = [[NSNumber alloc] initWithBool:YES];
     }
     return _y;
@@ -69,17 +69,35 @@
 
 - (id)n
 {
-    if (nil == _n) {
+    if (!_n) {
         _n = [[NSNumber alloc] initWithBool:NO];
     }
     return _n;
 }
 
-#pragma mark - Life Cycle
+- (NSMutableIndexSet *)indicies
+{
+    NSMutableIndexSet * result = [[NSMutableIndexSet alloc] init];
+    for (NSUInteger i = 0; i < self.titlesCount; ++i) {
+        if ([self isSetIndex:i]) {
+            [result addIndex:i];
+        }
+    }
+    return result;
+}
+
+- (void)setIndicies:(NSMutableIndexSet *)indicies
+{
+    for (NSUInteger i = 0; i < self.titlesCount; ++i) {
+        [self setIndex:i withValue:[indicies containsIndex:i]];
+    }
+}
+
+#pragma mark - Lifecycle
 
 - (SKTogglesThumb*)thumbPrototype
 {
-    if (nil == _thumbPrototype)
+    if (!_thumbPrototype)
     {
         _thumbPrototype = [[SKTogglesThumb alloc] initWithFrame:CGRectZero];
         _thumbPrototype.hidden = YES;
@@ -239,7 +257,7 @@
         self.segmentWidth = ceil(self.segmentWidth/2.0)*2; // make it an even number so we can position with center
     }
     else {
-        if (0 == self.titlesCount) {
+        if (self.titlesCount == 0) {
             return;
         }
         self.segmentWidth = round(self.frame.size.width/self.titlesCount);

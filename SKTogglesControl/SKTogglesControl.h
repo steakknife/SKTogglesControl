@@ -51,6 +51,8 @@
 @property (nonatomic, readonly) BOOL newState;
 @property (nonatomic, readonly) NSUInteger newIndex;
 
+@property (nonatomic) NSMutableIndexSet *indicies;
+
 - (SKTogglesControl*)initWithSectionTitles:(NSArray*)titlesArray;
 
 - (void)setAllFromArray:(NSArray *)array;
